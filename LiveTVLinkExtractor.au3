@@ -5,12 +5,17 @@
 if FileExists(@Scriptdir & "\settings.ini") = 0 Then
 IniWrite(@Scriptdir & "\settings.ini","global","list","http://exabytetv.info/USA.m3u|http://exabytetv.info/UK.m3u|http://exabytetv.info/ITA.m3u|http://exabytetv.info/NLD.m3u|http://exabytetv.info/ESP.m3u|http://exabytetv.info/PRT.m3u|http://exabytetv.info/SUA.m3u|http://exabytetv.info/ALB.m3u|http://exabytetv.info/FRA.m3u|http://exabytetv.info/DEU.m3u|http://exabytetv.info/TUR.m3u|http://exabytetv.info/IND.m3u|http://exabytetv.info/LA1.m3u|http://exabytetv.info/LA2.m3u|http://exabytetv.info/LA3.m3u|http://exabytetv.info/LA4.m3u|http://exabytetv.info/AMERICA.m3u|http://exabytetv.info/CABLEMX.m3u")
 Endif
+if FileExists(@Scriptdir & "\ffprobe.exe") = 0 Then
+MsgBox(0,"LiveTVExtractor","FFprope not found please download ffmpeg and extract it to this directory")
+ShellExecute("https://ffmpeg.org/download.html")
+Endif
+
 $List = IniRead(@Scriptdir & "\settings.ini","global","list","http://exabytetv.info/USA.m3u|http://exabytetv.info/UK.m3u|http://exabytetv.info/ITA.m3u|http://exabytetv.info/NLD.m3u|http://exabytetv.info/ESP.m3u|http://exabytetv.info/PRT.m3u|http://exabytetv.info/SUA.m3u|http://exabytetv.info/ALB.m3u|http://exabytetv.info/FRA.m3u|http://exabytetv.info/DEU.m3u|http://exabytetv.info/TUR.m3u|http://exabytetv.info/IND.m3u|http://exabytetv.info/LA1.m3u|http://exabytetv.info/LA2.m3u|http://exabytetv.info/LA3.m3u|http://exabytetv.info/LA4.m3u|http://exabytetv.info/AMERICA.m3u|http://exabytetv.info/CABLEMX.m3u")
 If $CmdLine[0] Then
 			   $Url = $CmdLine[1]
 			    $Output = $CmdLine[2]
 			   $append = $CmdLine[3]
-			   $Speed = $CmdLine[4]
+			   $Audio = $CmdLine[4]
 			   $Listname = $CmdLine[3]
 			   DirCreate(@ScriptDir & "/Temp")
 			   FileDelete(@ScriptDir & "/Temp/" & $Listname)
@@ -28,32 +33,19 @@ If $CmdLine[0] Then
 					 $Channel = $Channel[0]
 					 if StringInStr(FileReadLine($file, $i + 1),".m3u8") = 0 Then
 					 Else
-					 $info = InetGet(FileReadLine($file, $i + 1),@ScriptDir & "/Temp/" & $Channel,1,1)
-					 $End = 1
-					 If FileExists(@ScriptDir & "/Temp/" & $Channel) = 0 Then
-						Do
-						If FileExists(@ScriptDir & "/Temp/" & $Channel) = 0 Then
-						   $End1 = $End + 1
-						   Sleep(500)
+						$Link = FileReadLine($file, $i + 1)
+						FileDelete(@ScriptDir & "\output.txt")
+						$CMD = @ScriptDir & "\ffprobe.exe " & $Link & " -hide_banner 2>" & @ScriptDir & "\output.txt"
+						RunWait(@ComSpec & " /c " & $CMD,"",@SW_HIDE)
+						if StringInStr(FileRead(@ScriptDir & "\output.txt"),"Server returned 401") Then
+						Elseif StringInStr(FileRead(@ScriptDir & "\output.txt"),"Server returned 403") Then
+						Elseif StringInStr(FileRead(@ScriptDir & "\output.txt"),"Error when") Then
+						Elseif StringInStr(FileRead(@ScriptDir & "\output.txt"),"error 502") Then
+						Elseif StringInStr(FileRead(@ScriptDir & "\output.txt"),"Empty playlist") Then
+						Elseif not StringInStr(FileRead(@ScriptDir & "\output.txt"),"Audio: " & $Audio) Then
 						Else
-						   $End1 = 6
-						EndIf
-						$End = $End1
-						Until $End = 6
-					 EndIf
-					 InetClose($info)
-					 If FileExists(@ScriptDir & "/Temp/" & $Channel) = 0 Then
-					 Else
-						if StringInStr(fileRead(@ScriptDir & "/Temp/" & $Channel),".ts") = 0 Then
-						Else
-						   $Stream = StringTrimRight(FileReadLine($file, $i + 1),4)
-						   $inetstream = InetGet($Stream & "ts",@ScriptDir & "/Temp/" & $Channel & ".ts",1,1)
-						   Sleep(3000)
-						   InetClose($inetstream)
-						   If FileExists(@ScriptDir & "/Temp/" & $Channel & ".ts") = 0 then
-						   Else
-							  If FileGetSize(@ScriptDir & "/Temp/" & $Channel & ".ts") > $Speed*1024*3 Then
-								 if StringInStr($line,'group-title="') = 0 Then
+
+						   if StringInStr($line,'group-title="') = 0 Then
 									FileWrite($Output,$line & @CRLF)
 									FileWrite($Output,FileReadLine($file, $i + 1) & @CRLF)
 								 Else
@@ -61,19 +53,22 @@ If $CmdLine[0] Then
 									if $append = "none" Then
 									   $append = $Group[0]
 									EndIf
+									if StringInStr(FileRead(@ScriptDir & "\output.txt"),"1280x720") = 0 Then
+									   $quality = "SD"
+									Else
+									   $quality = "HD"
+									EndIf
+									$append = StringReplace($append,"%origonal", $Group[0])
+									$append = StringReplace($append,"%quality", $quality)
 									$ChannelName = StringReplace($line,'group-title="' & $Group[0] & '"','group-title="' & $append & '"')
 									FileWrite($Output,$ChannelName & @CRLF)
 									FileWrite($Output,FileReadLine($file, $i + 1) & @CRLF)
 								 EndIf
-							  Else
-							  EndIf
-						   EndIf
 						EndIf
-					 EndIf
-				  EndIf
-				  FileDelete(@ScriptDir & "/Temp/" & $Channel)
-			   FileDelete(@ScriptDir & "/Temp/" & $Channel & ".ts")
-			   EndIf
+
+					EndIf
+				 EndIf
+
 
 			Next
 			FileClose(@ScriptDir & "/Temp/" & $Listname)
@@ -95,8 +90,8 @@ Func Example()
 	   $OutPut = GUICtrlCreateInput(@DesktopDir & "\livetv.m3u",10,80,250,25)
 	   GUICtrlCreateLabel("Append Group Name",10,110,250,25)
 	   $append = GUICtrlCreateInput("1 Tech",10,135,250,25)
-	   GUICtrlCreateLabel("Reject Connections Slower Than",10,165,250,25)
-	   $speed = GUICtrlCreateInput("0",10,190,250,25)
+	   GUICtrlCreateLabel("only allow audio format",10,165,250,25)
+	   $audio = GUICtrlCreateInput("aac",10,190,250,25)
 	   $Progress = GUICtrlCreateLabel("awaiting selection",10,250,250,25)
     ; Display the GUI.
     GUISetState(@SW_SHOW, $hGUI)
@@ -110,8 +105,8 @@ Func Example()
 			   $Url = GUICtrlRead($URL)
 			   $append = GUICtrlRead($append)
 			   $Output = GUICtrlRead($OutPut)
-			   $Speed = GUICtrlRead($speed)
 			   $Listname = GUICtrlRead($append)
+			   $Audio = GUICtrlRead($audio)
 			   DirCreate(@ScriptDir & "/Temp")
 			   FileDelete(@ScriptDir & "/Temp/" & $Listname)
 			   if FileExists($Output) = 0 Then
@@ -131,58 +126,42 @@ Func Example()
 					 if StringInStr(FileReadLine($file, $i + 1),".m3u8") = 0 Then
 						GUICtrlSetData($Progress,$Channel & " has no m3u8 file")
 					 Else
-					 $info = InetGet(FileReadLine($file, $i + 1),@ScriptDir & "/Temp/" & $Channel,1,1)
-					 $End = 1
-					 If FileExists(@ScriptDir & "/Temp/" & $Channel) = 0 Then
-						Do
-						If FileExists(@ScriptDir & "/Temp/" & $Channel) = 0 Then
-						   $End1 = $End + 1
-						   Sleep(500)
+						$Link = FileReadLine($file, $i + 1)
+						FileDelete(@ScriptDir & "\output.txt")
+						$CMD = @ScriptDir & "\ffprobe.exe " & $Link & " -hide_banner 2>" & @ScriptDir & "\output.txt"
+						RunWait(@ComSpec & " /c " & $CMD,"",@SW_HIDE)
+						if StringInStr(FileRead(@ScriptDir & "\output.txt"),"Server returned 401") Then
+						Elseif StringInStr(FileRead(@ScriptDir & "\output.txt"),"Server returned 403") Then
+						Elseif StringInStr(FileRead(@ScriptDir & "\output.txt"),"Error when") Then
+						Elseif StringInStr(FileRead(@ScriptDir & "\output.txt"),"error 502") Then
+						Elseif StringInStr(FileRead(@ScriptDir & "\output.txt"),"Empty playlist") Then
+						Elseif not StringInStr(FileRead(@ScriptDir & "\output.txt"),"Audio: " & $Audio) Then
 						Else
-						   $End1 = 6
-						EndIf
-						$End = $End1
-						Until $End = 6
-					 EndIf
-					 InetClose($info)
-					 If FileExists(@ScriptDir & "/Temp/" & $Channel) = 0 Then
-						GUICtrlSetData($Progress,$Channel & " link is dead")
-					 Else
-						if StringInStr(fileRead(@ScriptDir & "/Temp/" & $Channel),".ts") = 0 Then
-						   GUICtrlSetData($Progress,$Channel & " no stream found in m3u8 file")
-						Else
-						   $Stream = StringTrimRight(FileReadLine($file, $i + 1),4)
-						   $inetstream = InetGet($Stream & "ts",@ScriptDir & "/Temp/" & $Channel & ".ts",1,1)
-						   Sleep(3000)
-						   InetClose($inetstream)
-						   If FileExists(@ScriptDir & "/Temp/" & $Channel & ".ts") = 0 then
-							  GUICtrlSetData($Progress,$Channel & " unable to playback stream")
-						   Else
-							  If FileGetSize(@ScriptDir & "/Temp/" & $Channel & ".ts") > $Speed*1024*3 Then
-								 if StringInStr($line,'group-title="') = 0 Then
+
+						   if StringInStr($line,'group-title="') = 0 Then
 									FileWrite($Output,$line & @CRLF)
 									FileWrite($Output,FileReadLine($file, $i + 1) & @CRLF)
-									GUICtrlSetData($Progress,$Channel & " added to list but group was not appended")
 								 Else
 									$Group = _StringBetween($line,'group-title="','"')
 									if $append = "none" Then
 									   $append = $Group[0]
 									EndIf
+									if StringInStr(FileRead(@ScriptDir & "\output.txt"),"1280x720") = 0 Then
+									   $quality = "SD"
+									Else
+									   $quality = "HD"
+									EndIf
+									$append = StringReplace($append,"%origonal", $Group[0])
+									$append = StringReplace($append,"%quality", $quality)
 									$ChannelName = StringReplace($line,'group-title="' & $Group[0] & '"','group-title="' & $append & '"')
 									FileWrite($Output,$ChannelName & @CRLF)
 									FileWrite($Output,FileReadLine($file, $i + 1) & @CRLF)
-									GUICtrlSetData($Progress,$Channel & " added to list")
 								 EndIf
-							  Else
-								 GUICtrlSetData($Progress,$Channel & " slower than requested")
-							  EndIf
-						   EndIf
 						EndIf
-					 EndIf
-				  EndIf
-				  FileDelete(@ScriptDir & "/Temp/" & $Channel)
-			   FileDelete(@ScriptDir & "/Temp/" & $Channel & ".ts")
-			   EndIf
+
+					EndIf
+				 EndIf
+
 
 			Next
 			FileClose(@ScriptDir & "/Temp/" & $Listname)
